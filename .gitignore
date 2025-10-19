@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/
+reports/
+scimilarity_model_v1_1/
+models/lora/*.pt
+*.h5ad
+*.tar.gz
+.DS_Store

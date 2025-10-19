@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+numpy
+pandas
+torch==2.3.1
+scikit-learn
+anndata
+scipy
+umap-learn
+scimilarity

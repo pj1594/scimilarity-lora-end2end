@@ -3,7 +3,7 @@ __pycache__/
 .venv/
 .env
 data/
-reports/
+#reports/
 scimilarity_model_v1_1/
 models/lora/*.pt
 *.h5ad

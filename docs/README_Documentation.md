@@ -27,7 +27,8 @@ sc.pp.normalize_total(adata, target_sum=1e4)
 sc.pp.log1p(adata)
 sc.pp.highly_variable_genes(adata, n_top_genes=2000, subset=True)
 adata.write_h5ad("siletti_pp.h5ad")
-##2️⃣ Fine-Tuning and Evaluation
+
+##2️⃣ Fine-Tuning and Evaluation 
 🔹 Step 1 – Load SCimilarity Model
 from scimilarity.cell_embedding import CellEmbedding
 encoder = CellEmbedding(model_path="/content/scimilarity_model_v1_1", use_gpu=True)

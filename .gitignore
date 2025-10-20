@@ -1,11 +1,122 @@
+# ===============================
+# 1️⃣ Python & Environment
+# ===============================
 __pycache__/
-*.pyc
-.venv/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+*.pkl
+*.db
+*.sqlite3
+
+# Virtual environment
 .env
-data/
-#reports/
-scimilarity_model_v1_1/
-models/lora/*.pt
-*.h5ad
+.venv/
+env/
+venv/
+ENV/
+Pipfile.lock
+poetry.lock
+
+# ===============================
+# 2️⃣ Streamlit & Hugging Face
+# ===============================
+.streamlit/secrets.toml
+.streamlit/config.toml
+.streamlit/credentials.toml
+# Hugging Face cache & token files
+~/.cache/huggingface/
+huggingface/
+tokenizers/
+cache/
+*.pt
+*.bin
+*.h5
+*.ckpt
+*.safetensors
 *.tar.gz
-.DS_Store
+*.zip
+*.gz
+*.onnx
+*.pkl
+
+# ===============================
+# 3️⃣ Model Weights & Artifacts
+# ===============================
+models/
+model/
+checkpoints/
+artifacts/
+downloads/
+temp/
+tmp/
+*.ckpt
+*.h5
+*.pt
+*.pth
+*.bin
+*.tar
+*.tflite
+
+# ===============================
+# 4️⃣ Build, Logs & Runtime
+# ===============================
+logs/
+log/
+*.log
+nohup.out
+*.out
+*.bak
+*.tmp
+*.swp
+*.DS_Store
+
+# ===============================
+# 5️⃣ Deployment / Cloud Specific
+# ===============================
+deploy_cloud_run.sh
+deploy_old/
+Dockerfile
+docker-compose.yml
+ngrok.yml
+service-account.json
+firebase.json
+*.key
+*.pem
+
+# ===============================
+# 6️⃣ IDEs & Editors
+# ===============================
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+
+# ===============================
+# 7️⃣ Data & Reports
+# ===============================
+data/
+datasets/
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.json
+*.jsonl
+*.parquet
+*.feather
+reports/temp/
+*.pdf
+
+# ===============================
+# 8️⃣ Notebook & Misc
+# ===============================
+.ipynb_checkpoints/
+*.ipynb
+notebooks/
+test_results/

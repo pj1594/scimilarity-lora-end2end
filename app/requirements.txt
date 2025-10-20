@@ -1,10 +1,30 @@
+# === Core runtime ===
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pydantic==2.9.2
-torch
-numpy
-pandas
-scikit-learn
-anndata
-scipy
-scimilarity  
+python-multipart==0.0.9
+
+# === Machine Learning / Torch ===
+torch>=2.0.0
+numpy>=1.26.4
+pandas>=2.2.2
+scikit-learn>=1.5.0
+
+# === SCimilarity & Biology Data Handling ===
+anndata>=0.10.6
+scipy>=1.12.0
+
+# === LoRA + PEFT (optional, for fine-tuned models) ===
+peft>=0.10.0
+transformers>=4.40.0
+
+# === Logging & Utils ===
+tqdm>=4.66.1
+joblib>=1.4.0
+
+# === For local and Colab testing ===
+pyngrok>=7.1.6
+
+# === Optional visualization / debugging ===
+matplotlib>=3.9.0
+seaborn>=0.13.2

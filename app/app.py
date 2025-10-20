@@ -1,6 +1,6 @@
 import os, json, traceback
 import numpy as np, pandas as pd, torch, torch.nn as nn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException 
 from pydantic import BaseModel, validator
 from scimilarity.cell_embedding import CellEmbedding
 import anndata as ad # Import anndata for fallback class loading

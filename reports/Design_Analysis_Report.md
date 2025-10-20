@@ -24,11 +24,11 @@
 
 | Metric | Baseline (frozen encoder) | LoRA-Tuned |
 |---------|---------------------------|-------------|
-| Accuracy | 31 % | **99.6 %** |
-| Macro F1 | 0.04 | **0.88** |
-| Avg Loss (Val) | 1.84 | **0.91** |
-| GPU Memory Usage | 16 GB | **< 4 GB** |
-| Training Time | 4 h | **35 min** |
+| Accuracy | 29 % | 47% |
+| Macro F1 | 0.08 | 0.064 |
+| Avg Loss (Val) | 1.84 | 0.91|
+| GPU Memory Usage | 16 GB | < 4 GB |
+| Training Time | 4 h | 35 min|
 
 ---
 

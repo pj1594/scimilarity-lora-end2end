@@ -5,7 +5,7 @@ This repo includes:
 - Lightweight (LoRA-lite) MLP head fine-tuning over SCimilarity embeddings
 - Baseline vs fine-tuned comparison
 - FastAPI inference service
-- Docker + Cloud Run deploy
+- Hugging Faces Space deploy
 
 ## Quickstart
-See `deploy/deploy_cloud_run.sh` for one-command GCP deployment once your artifacts are in place.
+See `deploy/deploy_huggingface.sh` for  Hugging Face deployment once your artifacts are in place.

@@ -1,96 +1,261 @@
-# 📘 SCimilarity + LoRA Documentation
+# 🧬 SCimilarity + LoRA: Single-Cell Type Classifier
+
+**Author:** Prajwal Eachempati  
+**Tech Stack:** PyTorch · FastAPI · Streamlit · Google Colab · Hugging Face Spaces · ngrok  
+**Goal:** Fine-tune the SCimilarity model with LoRA adapters for improved single-cell type classification and deploy it using a real-time inference API and Streamlit UI.
 
 ---
 
-## 1️⃣ Dataset Preparation
+## 📘 Overview
 
-### 🔹 Source
-- Select a **single-cell RNA-seq dataset** (post-2022) with annotated cell types.  
-- Recommended source: [CellxGene Portal](https://cellxgene.cziscience.com/datasets).
+This project demonstrates **LoRA fine-tuning** of the **SCimilarity** single-cell embedding model and real-world deployment via **FastAPI** + **Hugging Face Spaces** (frontend) + **ngrok** (backend tunneling).
 
-### 🔹 Example Dataset
-For demonstration, we used the **Siletti et al., 2023** human cortical dataset (`siletti_pp.h5ad`), containing ~45 K cells and 28 K genes.
+The workflow covers:
+1. Dataset preparation  
+2. LoRA-based fine-tuning  
+3. Evaluation and error analysis  
+4. Real-time inference with FastAPI  
+5. Deployment on Hugging Face Spaces  
 
-### 🔹 Download Instructions (Colab / Cloud Shell)
-```bash
-# Create folder for data
-mkdir -p data/raw
+---
 
-# Example: download Siletti dataset from CellxGene (replace URL with your selected one)
-wget -O data/raw/siletti.h5ad "https://datasets.cellxgene.cziscience.com/XXXXXXXXX.h5ad"
+## 📂 Repository Structure
 
-# Optionally downsample to 20 K–50 K cells for quick experiments
-python scripts/downsample_adata.py --input data/raw/siletti.h5ad --output data/siletti_pp.h5ad --n_cells 30000
-import scanpy as sc
-adata = sc.read_h5ad("data/siletti_pp.h5ad")
-sc.pp.normalize_total(adata, target_sum=1e4)
-sc.pp.log1p(adata)
-sc.pp.highly_variable_genes(adata, n_top_genes=2000, subset=True)
-adata.write_h5ad("siletti_pp.h5ad")
+scimilarity-lora-end2end/
+│
+├── app_run.py # FastAPI inference API (LoRA + SCimilarity)
+├── start.sh # API launch script
+├── deploy_huggingface.sh # Hugging Face deployment helper
+│
+├── models/
+│ └── lora/
+│ ├── linear_head.pt # LoRA fine-tuned classifier weights
+│ └── label_classes.txt # Class label names
+│
+├── reports/
+│ └── Design_Analysis_Report.md # Analysis & catastrophic forgetting discussion
+│
+├── ui/
+│ ├── streamlit_app.py # Streamlit frontend for predictions
+│ ├── requirements.txt # Dependencies for Hugging Face Space
+│ └── .streamlit/secrets.toml # API endpoint configuration (not pushed to Git)
+│
+├── scripts/
+│ ├── run_api_colab.sh # Launch FastAPI + ngrok in Colab
+│ └── run_api_local.sh # Launch API locally via uvicorn
+│
+├── requirements_api.txt # Backend dependencies
+└── README_documentation.md # This documentation file
 
-##2️⃣ Fine-Tuning and Evaluation 
-🔹 Step 1 – Load SCimilarity Model
-from scimilarity.cell_embedding import CellEmbedding
-encoder = CellEmbedding(model_path="/content/scimilarity_model_v1_1", use_gpu=True)
 
-🔹 Step 2 – Attach LoRA Adapters
+---
+
+## 🧩 Step 1. Dataset Preparation
+
+**Dataset:** [Siletti et al. 2023](https://cellxgene.cziscience.com/)
+
+Data files used:
+- `train.h5ad`
+- `val.h5ad`
+- `test.h5ad`
+
+```python
+import anndata as ad
+train = ad.read_h5ad("data/processed/train.h5ad")
+val   = ad.read_h5ad("data/processed/val.h5ad")
+test  = ad.read_h5ad("data/processed/test.h5ad")
+
+# Downsample for class balance
+train = train[train.obs['cell_type'].isin(top_classes)].copy()
+train.write("data/processed/train_balanced.h5ad")
+
+##  Step 2. Fine-Tuning with LoRA
+
+LoRA (Low-Rank Adaptation) adapters are applied to the SCimilarity encoder to reduce training cost and avoid catastrophic forgetting.
+
+Configuration:
+Base model: scimilarity_model_v1_1
+Adapter rank: r=8
+Batch size: 64
+Learning rate: 1e-4
+Epochs: 20
+Optimizer: AdamW
+
+Python Code:
 from peft import LoraConfig, get_peft_model
-lora_cfg = LoraConfig(r=8, lora_alpha=16, lora_dropout=0.05,
-                      target_modules=["linear","proj"])
-encoder_lora = get_peft_model(encoder, lora_cfg)
+from scimilarity.cell_embedding import CellEmbedding
 
-🔹 Step 3 – Train MLP Head
-clf = torch.nn.Linear(encoder.output_dim, num_classes)
-opt = torch.optim.AdamW([...])
+encoder = CellEmbedding(model_path="/content/scimilarity_model_v1_1")
+lora_cfg = LoraConfig(r=8, lora_alpha=16, target_modules=["fc1", "fc2"], lora_dropout=0.05)
+encoder.model = get_peft_model(encoder.model, lora_cfg)
 
-🔹 Step 4 – Evaluate
-Metric	Baseline	LoRA-Tuned
-Accuracy	31 %	99 %
-Macro F1	0.04	0.88
+Training loop:
 
-Visualization:
+for epoch in range(epochs):
+    encoder.model.train()
+    for X_batch, y_batch in train_loader:
+        optimizer.zero_grad()
+        z = encoder.get_embeddings(X_batch)
+        loss = criterion(clf(z), y_batch)
+        loss.backward()
+        optimizer.step()
+
+
+Checkpoints:
+
+models/lora/linear_head.pt
+models/lora/label_classes.txt
+
+📊 Step 3. Evaluation Metrics
+Metric	Base SCimilarity	LoRA-Finetuned
+Accuracy	29%	46%
+Macro-F1	0.52	0.68
+Confidence	0.74 avg	0.87 avg
+
+Confusion Matrix Visualization:
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-ConfusionMatrixDisplay.from_estimator(clf, X_val, y_val, display_labels=label_names)
+cm = confusion_matrix(y_true, y_pred)
+disp = ConfusionMatrixDisplay(cm)
+disp.plot()
 
-##3️⃣ Inference Service (FastAPI)
-🔹 Run Locally
-uvicorn app.app:app --host 0.0.0.0 --port 8000
 
-🔹 Example Request
-curl -X POST http://localhost:8000/predict \
+Misclassified samples are analyzed in Cell 67 (Colab).
+
+⚙️ Step 4. FastAPI Inference Service
+
+File: app_run.py
+
+This service loads:
+
+LoRA fine-tuned encoder
+
+Linear classification head
+
+Gene order mapping
+
+Health check
+curl http://127.0.0.1:8000/healthz
+
+Example prediction
+curl -s -X POST http://127.0.0.1:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"expression":{"CD19":8.5,"MS4A1":9.2,"CD79A":7.8,"CD3D":0.0,"CD8A":0.0,"CD4":0.0}}'
+  -d '{"expression":{"CD19":8.5,"MS4A1":9.2,"CD79A":7.8,"CD79B":7.5}}'
 
 
-Expected Response
+Output:
 
 {
   "cell_type": "B cell",
-  "confidence": 0.87
+  "confidence": 0.91
 }
 
-🔹 Docker Deployment
-docker build -t scimilarity-lora .
-docker run -p 8000:8000 scimilarity-lora
+🌐 Step 5. Public Access with ngrok
 
-🔹 Cloud Run Deployment
-gcloud builds submit --tag gcr.io/$PROJECT_ID/scimilarity-lora
-gcloud run deploy scimilarity-lora-api \
-  --image gcr.io/$PROJECT_ID/scimilarity-lora \
-  --platform managed \
-  --allow-unauthenticated
+To expose your local FastAPI backend for the Streamlit frontend:
 
-##4️⃣ File Structure
-📦 scimilarity-lora-end2end
-├── data/               # raw + preprocessed datasets
-├── models/lora/        # LoRA adapters + classifier head
-├── app/                # FastAPI inference service
-├── training/           # fine-tuning & evaluation code
-├── deploy/             # Docker + Cloud Run scripts
-└── notebooks/          # end-to-end Colab notebook
+Run in Colab:
 
-##5️⃣ Reproducibility
-git clone https://github.com/pj1594/scimilarity-lora-end2end.git
-pip install -r app/requirements.txt
-jupyter nbconvert --to notebook --execute notebooks/SCimilarity_LoRA_Colab.ipynb
+!bash scripts/run_api_colab.sh
+
+
+Expected output:
+
+[ngrok] Tunnel running at: https://nasir-spacious-kamila.ngrok-free.dev
+
+
+This public URL (/predict) is used in your Streamlit app.
+
+💻 Step 6. Streamlit UI (Hugging Face Spaces)
+
+Space: praj-1594/scimilarity-lora-ui
+Framework: Streamlit
+File: src/streamlit_app.py
+
+Configuration
+
+In your Hugging Face Space → add:
+
+src/streamlit_app.py
+requirements.txt
+
+
+Create a secrets file (do NOT push to Git):
+
+.streamlit/secrets.toml
+
+
+Inside it, add your ngrok API endpoint:
+
+[general]
+API_URL = "https://nasir-spacious-kamila.ngrok-free.dev/predict"
+
+
+Restart the Space.
+
+Output:
+
+A web interface where users can input gene expression values and receive predicted cell type + confidence.
+
+Step 7. Deployment Automation
+
+File: deploy_huggingface.sh
+Automates repo update & Space redeploy steps:
+bash deploy_huggingface.sh
+
+It:
+Commits local updates
+Pushes to GitHub
+Reminds you to restart your Hugging Face Space
+
+📈 Step 8. Design Analysis & Results
+
+File: reports/Design_Analysis_Report.md
+
+Includes:
+
+LoRA vs. baseline performance
+Misclassification patterns
+Catastrophic forgetting mitigation
+Parameter efficiency summary
+
+Highlights:
+
+LoRA updates only ~2.3% of model parameters
+
+No degradation in pre-trained SCimilarity performance
+
+Retains generalization while improving new cell-type accuracy
+
+🧾 Environment Setup Summary
+
+Backend (FastAPI):
+
+pip install -r requirements_api.txt
+bash start.sh
+
+
+Frontend (Streamlit - Hugging Face):
+Automatically handled by Hugging Face Spaces.
+
+End-to-end test:
+
+curl -X POST https://nasir-spacious-kamila.ngrok-free.dev/predict \
+  -H "Content-Type: application/json" \
+  -d '{"expression":{"CD19":8.5,"MS4A1":9.2,"CD79A":7.8}}'
+
+🧠 Key Insights
+Aspect	Description
+Fine-tuning Efficiency	<2% parameters updated
+Model Retention	No catastrophic forgetting
+Inference Speed	~95 ms/sample
+Deployment	Hugging Face Spaces (Streamlit) + ngrok FastAPI
+Result	46% validation accuracy, strong generalization
+🔮 Future Enhancements
+
+Merge multiple LoRA adapters for cross-tissue learning
+
+Integrate RAG for gene ontology search
+
+Deploy on Vertex AI or AWS Lambda
+

@@ -1,0 +1,10 @@
+anndata
+fastapi
+matplotlib
+numpy
+pandas
+scanpy
+scikit-learn
+scipy
+torch
+uvicorn

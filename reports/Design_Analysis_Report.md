@@ -36,14 +36,16 @@ Before performance comparison, we validated whether the baseline and LoRA encode
 These checks confirm that the LoRA branch and baseline branch are independently evaluated, eliminating overlap artifacts.
 
 4. Quantitative Results
+   
 | Metric                      | Baseline | LoRA    | Δ (LoRA–Base) |
 | --------------------------- | -------- | ------- | ------------- |
-| Accuracy                    | 34%      | 36%     | +2%           |
+| Accuracy                    | **34%**  | **36%** | +2%           |
 | Macro F1                    | 0.32     | 0.35    | +0.03         |
 | Triplet Loss ↓              | 0.421    | 0.367   | -0.054        |
 | Reconstruction MSE ↓        | 0.031    | 0.026   | -0.005        |
 | Balanced Accuracy           | 0.33     | 0.36    | +0.03         |
-| Inference Speed (ms/sample) | 94       | 97      | +3            | 
+| Inference Speed (ms/sample) | 94       | 97      | +3            |
+
 
 Interpretation
 Even a 2% improvement in biological classification accuracy is statistically meaningful for heterogeneous single-cell data.
@@ -73,6 +75,8 @@ Major improvements observed between lymphoid subtypes (T cells, NK cells, B cell
 | **LoRA**     | Reduced overlap, especially within immune lineage branches.                |
 
 6. Top-5 Misclassified Cell Populations
+The top 5 misclassified cell populations are as follows:
+
 | True Label  | Predicted As | Count | Likely Reason                            |
 | ----------- | ------------ | ----- | ---------------------------------------- |
 | Monocyte    | Macrophage   | 9     | Shared gene markers (CD14, CD68)         |
@@ -80,6 +84,7 @@ Major improvements observed between lymphoid subtypes (T cells, NK cells, B cell
 | Endothelial | Fibroblast   | 7     | Stress response signature overlap        |
 | B Cell      | Plasma Cell  | 5     | Transitional differentiation stages      |
 | Dendritic   | Monocyte     | 4     | Class imbalance in dataset               |
+
 
 Insights
 
@@ -115,6 +120,8 @@ Industry Relevance:
 A +2% improvement accompanied by lower embedding loss is well within industry benchmarks for biomedical classification tasks (±1–3% gain post-LoRA fine-tuning).
 
 9. Metrics Interpretation Summary
+The metrics have been defined and interpreted in the following table:
+
 | Metric                  | Definition                                           | Ideal  | LoRA Result |
 | ----------------------- | ---------------------------------------------------- | ------ | ----------- |
 | **Accuracy**            | Proportion of correct predictions                    | ↑      | +2%         |
@@ -138,9 +145,6 @@ LoRA provides an optimal trade-off between performance, efficiency, and stabilit
 11. Future Work
 
 Extend analysis to multi-modal embeddings (RNA + protein).
-
 Incorporate contrastive pre-training to improve zero-shot generalization.
-
 Deploy LoRA-optimized models through Vertex AI pipelines for scalable retraining.
-
 Integrate interpretability layer (e.g., SHAP, Integrated Gradients) for marker attribution.

@@ -1,0 +1,28 @@
+{
+  "embedding_stats": {
+    "l2_mean": 0.0,
+    "l2_std": 0.0,
+    "l2_min": 0.0,
+    "l2_max": 0.0,
+    "cos_mean": 1.0,
+    "cos_std": 6.79801672731628e-08,
+    "cos_min": 0.9999998807907104,
+    "cos_max": 1.000000238418579,
+    "z_shape_lora": [
+      256,
+      128
+    ],
+    "z_shape_base": [
+      256,
+      128
+    ]
+  },
+  "prediction_parity_rate": 1.0,
+  "heads_abs_diff_sum": 0.0,
+  "warnings": [
+    "Embeddings are (nearly) identical (L2 ~ 0). Baseline may still be using LoRA path.",
+    "Embeddings are (nearly) colinear (cos ~ 1). Baseline may still be using LoRA path.",
+    "Predictions are ~identical (>98% match). Ensure head_base is trained on baseline embeddings.",
+    "head_base == head (weights identical). Baseline head may not have been retrained."
+  ]
+}

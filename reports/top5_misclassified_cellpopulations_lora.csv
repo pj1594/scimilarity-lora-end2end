@@ -1,0 +1,6 @@
+True_Label,Predicted_Label,Count
+oligodendrocyte,neuron,1067
+neuron,oligodendrocyte,433
+astrocyte,neuron,160
+central nervous system macrophage,neuron,159
+oligodendrocyte precursor cell,neuron,138

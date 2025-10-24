@@ -38,12 +38,12 @@ These checks confirm that the LoRA branch and baseline branch are independently 
 4. Quantitative Results
 | Metric                      | Baseline | LoRA    | Δ (LoRA–Base) |
 | --------------------------- | -------- | ------- | ------------- |
-| Accuracy                    | **34%**  | **36%** | +2%           |
+| Accuracy                    | 34%      | 36%     | +2%           |
 | Macro F1                    | 0.32     | 0.35    | +0.03         |
 | Triplet Loss ↓              | 0.421    | 0.367   | -0.054        |
 | Reconstruction MSE ↓        | 0.031    | 0.026   | -0.005        |
 | Balanced Accuracy           | 0.33     | 0.36    | +0.03         |
-| Inference Speed (ms/sample) | 94       | 97      | +3            |
+| Inference Speed (ms/sample) | 94       | 97      | +3            | 
 
 Interpretation
 Even a 2% improvement in biological classification accuracy is statistically meaningful for heterogeneous single-cell data.

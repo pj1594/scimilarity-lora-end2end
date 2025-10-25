@@ -106,8 +106,7 @@ warnings:
 | ├── `run_api.py` | API launcher for deployment (Uvicorn-ready) |
 | **deploy/start.sh** | Startup script with environment validation |
 | **reports/Design_Analysis_Report.md** | In-depth architecture, metrics discussion, and loss analysis |
-| **artifacts/** | Stores confusion matrices, top-5 misclassified CSVs, and summary |
-| **models/lora/label_classes.txt** | Class label mappings |
+| **reports/** | Stores confusion matrices, top-5 misclassified CSVs, and summary |
 | **requirements.txt** | All dependencies |
 | **.gitignore** | Excludes large models & data |
 
@@ -157,7 +156,7 @@ POST /predict
 ---
 
 ## 📜 Design & Analysis Report
-See [`reports/Design_Analysis_Report.md`](reports/Design_Analysis_Report.md) for:
+See [`reports/Design_Analysis_Report.md`] for:
 - Detailed model architecture
 - Triplet vs Reconstruction loss ablation
 - Discussion on catastrophic forgetting mitigation

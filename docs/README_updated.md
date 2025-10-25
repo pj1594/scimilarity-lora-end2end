@@ -75,12 +75,14 @@ The improvement, though modest, is statistically and biologically meaningful:
 | Path | Description |
 |------|--------------|
 | **app/** | Core source code for evaluation, metrics, and model I/O |
-| └── `__init__.py`,'app.py' | Initializes package context for `app` modules and provides FastAPI deployment  |
+| └── `__init__.py`| Initializes package context for `app` modules |
+| └── `app.py' | Provides FastAPI deployment  |
 | ├── `main.py` | Entry point for executing evaluation and saving artifacts |
 | ├── `model_io.py` | Handles embedding extraction, normalization, and batch inference |
 | ├── `metrics.py` | Implements evaluation metrics: accuracy, F1, triplet loss, and reconstruction loss |
 | ├── `eval_runner.py` | Runs comparative evaluation (baseline vs LoRA), generates confusion matrices & misclassified samples |
-| **run_api.py** | FastAPI entry point exposing `/predict` endpoint for live inference |
+| ├── `requirements.txt` | Dependencies to install |
+| ├── `run_api.py` | FastAPI entry point exposing `/predict` endpoint for live inference |
 | **scripts/** | Utility scripts for experiments and automation |
 | ├── `evaluate.py` | Command-line runner to execute `app/main.py` directly |
 | └── `deploy_huggingface.sh` | Automates CI/CD deployment to Hugging Face Spaces |

@@ -79,7 +79,7 @@ The improvement, though modest, is statistically and biologically meaningful:
 | ├── `model_io.py` | Handles embedding extraction, normalization, and batch inference |
 | ├── `eval_runner.py` | Runs comparative evaluation (baseline vs LoRA), generates confusion matrices & misclassified samples |
 | ├── `main.py` | Entry point for executing evaluation and saving artifacts |
-| └── `__init__.py` | Initializes package context for `app` modules |
+| └── `__init__.py`,'app.py' | Initializes package context for `app` modules and provides FastAPI deployment  |
 | **scripts/** | Utility scripts for experiments and automation |
 | ├── `evaluate.py` | Command-line runner to execute `app/main.py` directly |
 | └── `deploy_huggingface.sh` | Automates CI/CD deployment to Hugging Face Spaces |
@@ -87,19 +87,16 @@ The improvement, though modest, is statistically and biologically meaningful:
 | ├── `start.sh` | Launches FastAPI inference server via `uvicorn app.main:app` |
 | └── `Dockerfile` | (Optional) Container definition for cloud deployment |
 | **models/lora/** | Trained model artifacts for LoRA fine-tuning |
-| ├── `mlp_head_best.pt` | Best-performing MLP classification head |
 | ├── `linear_head.pt` | Backup linear head checkpoint |
 | └── `label_classes.txt` | Encoded class label list used during inference |
 | **data/** | Dataset directory (processed AnnData files) |
 | └── `test.h5ad` | Evaluation/test dataset |
-| **artifacts/** | Generated outputs from evaluation runs |
+| **reports/** | Generated outputs from evaluation runs |
 | ├── `cm_lora.png` | Confusion matrix for LoRA model |
 | ├── `cm_baseline.png` | Confusion matrix for baseline model |
 | ├── `summary.csv` | Metrics summary table (Accuracy, F1, Losses) |
 | └── `misclassified_top5.csv` | Top-5 most confused cell-type pairs |
 | **run_api.py** | FastAPI entry point exposing `/predict` endpoint for live inference |
-| **README.md** | Main documentation and workflow instructions |
-| **Design_Analysis_Report.md** | Detailed technical analysis of LoRA vs baseline results |
 
 ---
 
@@ -107,7 +104,7 @@ The improvement, though modest, is statistically and biologically meaningful:
 
 - **Training / Evaluation:** `app/eval_runner.py`, `scripts/evaluate.py`  
 - **Deployment / API:** `run_api.py`, `deploy/start.sh`  
-- **Artifacts / Results:** `artifacts/` folder  
+- **Artifacts / Results:** `reports/` folder  
 - **In-depth Analysis:** `Design_Analysis_Report.md`  
 
 ---
@@ -115,12 +112,83 @@ The improvement, though modest, is statistically and biologically meaningful:
 ## 🚀 Quickstart
 
 ### 1️⃣ Prepare Dataset
+```python
+#Download data from CellXGene Repository (Siletti,2023)
+DATASET_URL = "https://datasets.cellxgene.cziscience.com/9f90a216-3fac-44ff-b0ca-7b77cf53ef07.h5ad"  # Siletti 2023 example
+RAW_FILE = "siletti_brain.h5ad"
+import os
+if not os.path.exists(RAW_FILE):
+    !wget -O $RAW_FILE "$DATASET_URL"
+else:
+    print(f"Using existing file: {RAW_FILE}")
+
+#Downsample to 50k rows
+import scanpy as sc, anndata as ad, numpy as np
+MAX_CELLS = 50000  # adjust to 20000–50000 as needed
+LABEL_KEYS = ["cell_type", "cell_type_original", "cell_type_ontology_term_id", "cell_label"]
+
+adata = sc.read_h5ad(RAW_FILE)
+print(adata)
+
+# Basic normalization
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+
+# Standardize gene names to uppercase to improve matching
+adata.var_names = adata.var_names.str.upper()
+adata.var["gene_symbol"] = adata.var_names
+adata = adata[:, ~adata.var_names.duplicated()].copy()
+
+if adata.n_obs > MAX_CELLS:
+    sc.pp.subsample(adata, n_obs=MAX_CELLS, random_state=7)
+    print(f"Downsampled to {MAX_CELLS} cells for Colab runtime.")
+
+# Pick a cell-type label key
+label_key = None
+for k in LABEL_KEYS:
+    if k in adata.obs:
+        label_key = k
+        break
+if label_key is None:
+    raise ValueError(f"None of the label keys found: {LABEL_KEYS}")
+
+adata.obs[label_key] = adata.obs[label_key].astype("category")
+
+PP_FILE = "siletti_pp.h5ad"
+adata.write_h5ad(PP_FILE)
+print(f"Saved preprocessed AnnData to {PP_FILE} with {adata.n_obs} cells × {adata.n_vars} genes. Label key: {label_key}")
+
+#Split into training, test and validation subsets for further processing
+import anndata as ad
+from sklearn.model_selection import train_test_split
+import numpy as np
+
+adata = ad.read_h5ad(PP_FILE)
+y = adata.obs[label_key].astype("category")
+
+# Identify and remove classes with only one member
+class_counts = y.value_counts()
+single_member_classes = class_counts[class_counts == 1].index
+adata = adata[~y.isin(single_member_classes)].copy()
+y = adata.obs[label_key].astype("category") # Update y after removing cells
+
+idx = np.arange(adata.n_obs)
+
+i_train, i_temp, y_train, y_temp = train_test_split(idx, y, test_size=0.30, stratify=y, random_state=42)
+i_val, i_test, y_val, y_test = train_test_split(i_temp, y_temp, test_size=0.50, stratify=y_temp, random_state=42)
+
+os.makedirs("data/processed", exist_ok=True)
+ad.AnnData(adata.X[i_train], obs=adata.obs.iloc[i_train].copy(), var=adata.var.copy()).write_h5ad("data/processed/train.h5ad")
+ad.AnnData(adata.X[i_val],   obs=adata.obs.iloc[i_val].copy(),   var=adata.var.copy()).write_h5ad("data/processed/val.h5ad")
+ad.AnnData(adata.X[i_test],  obs=adata.obs.iloc[i_test].copy(),  var=adata.var.copy()).write_h5ad("data/processed/test.h5ad")
+
+print(f"Splits saved: train={len(i_train)} val={len(i_val)} test={len(i_test)}")
+```
 ```bash
 # Place your AnnData test file
 mkdir -p data
 cp your_test_file.h5ad data/test.h5ad
 ```
-
 ### 2️⃣ Run Fine-Tuning & Evaluation
 ```bash
 python app/main.py
@@ -142,7 +210,7 @@ curl -X POST http://localhost:8000/predict   -H "Content-Type: application/json"
 ## 🌐 Live Demo
 
 - **Frontend (Streamlit UI):** [Hugging Face Space](https://huggingface.co/spaces/praj-1594/scimilarity-lora-ui)  
-- **Backend (FastAPI via ngrok):** Accessible through public `/predict` endpoint  
+- **Backend (FastAPI via ngrok):** [Accessible through public `/predict` endpoint ](https://nasir-spacious-kamila.ngrok-free.dev/predict) 
 
 ---
 

@@ -168,5 +168,5 @@ See [`reports/Design_Analysis_Report.md`] for:
 **Prajwal Eachempati**  
 AI & Process Automation Consultant | PhD (MIS)  
 📧 dataapraj@gmail.com  
-🌐 [LinkedIn](https://linkedin.com/in/prajwaleachempati)  
+🌐 [LinkedIn][https://www.linkedin.com/in/prajwal-eachempati-phd-8231b991]  
 🧠 Passion: AI-driven biological modeling, automation, and explainable GenAI systems.

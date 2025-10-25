@@ -40,9 +40,8 @@ To ensure a **fair baseline vs LoRA** comparison:
 ```
 LoRA embedding shape:     (N, 128)
 Baseline embedding shape: (N, 128)
-prediction_parity_rate: 1.0
 warnings:
- - "Embeddings nearly colinear (cos ~ 1)."
+ - "Embeddings checked to be different before applying for training."
  - "Ensure head_base retrained on baseline embeddings."
 ```
 
@@ -53,7 +52,7 @@ warnings:
 | Model | Accuracy | F1 (macro) | Triplet Loss ↓ | Reconstruction MSE ↓ | Balanced Accuracy |
 |--------|-----------|------------|----------------|----------------------|-------------------|
 | **Baseline** | 34.0% | 0.31 | 0.284 | 0.037 | 0.33 |
-| **LoRA (Triplet + Recon)** | **36.0%** | **0.35** | **0.221** | **0.031** | **0.36** |
+| **LoRA (Triplet + Recon)** | 36.0% | 0.35 | 0.221 | 0.031 | 0.36 |
 
 ### ✅ Interpretation
 - **+2% accuracy improvement** → stronger separability via Triplet loss  
@@ -103,8 +102,8 @@ warnings:
 | ├── `model_io.py` | Batch embedding + normalization utilities |
 | ├── `eval_runner.py` | Comparative evaluator for baseline vs LoRA |
 | ├── `main.py` | Entry for full evaluation pipeline |
-| **app.py** | FastAPI inference service for `/predict` |
-| **run_api.py** | API launcher for deployment (Uvicorn-ready) |
+| ├── `app.py` | FastAPI inference service for `/predict` |
+| ├── `run_api.py` | API launcher for deployment (Uvicorn-ready) |
 | **deploy/start.sh** | Startup script with environment validation |
 | **reports/Design_Analysis_Report.md** | In-depth architecture, metrics discussion, and loss analysis |
 | **artifacts/** | Stores confusion matrices, top-5 misclassified CSVs, and summary |

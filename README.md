@@ -54,7 +54,7 @@ The result:
 🔗 [https://huggingface.co/spaces/praj-1594/scimilarity-lora-ui](https://huggingface.co/spaces/praj-1594/scimilarity-lora-ui)
 
 **Backend (FastAPI via ngrok):**  
-🔗 `https://nasir-spacious-kamila.ngrok-free.dev/predict`  
+🔗 [https://nasir-spacious-kamila.ngrok-free.dev/predict]
 
 **Test Command:**
 ```bash

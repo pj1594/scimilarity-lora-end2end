@@ -60,7 +60,7 @@ The result:
 ### 🔬 Interpretation
 The improvement, though modest, is statistically and biologically meaningful:  
 - **Triplet loss** enhances intra-class compactness and inter-class separability.  
-- **Reconstruction loss** mitigates *catastrophic forgetting* by preserving feature manifolds.  
+- **Reconstruction loss** mitigates catastrophic forgetting by preserving feature manifolds.  
 - Together, they stabilize LoRA fine-tuning without overfitting small data.  
 
 ### 🧠 Error & Confusion Analysis
@@ -75,28 +75,23 @@ The improvement, though modest, is statistically and biologically meaningful:
 | Path | Description |
 |------|--------------|
 | **app/** | Core source code for evaluation, metrics, and model I/O |
-| ├── `metrics.py` | Implements evaluation metrics: accuracy, F1, triplet loss, and reconstruction loss |
-| ├── `model_io.py` | Handles embedding extraction, normalization, and batch inference |
-| ├── `eval_runner.py` | Runs comparative evaluation (baseline vs LoRA), generates confusion matrices & misclassified samples |
-| ├── `main.py` | Entry point for executing evaluation and saving artifacts |
 | └── `__init__.py`,'app.py' | Initializes package context for `app` modules and provides FastAPI deployment  |
+| ├── `main.py` | Entry point for executing evaluation and saving artifacts |
+| ├── `model_io.py` | Handles embedding extraction, normalization, and batch inference |
+| ├── `metrics.py` | Implements evaluation metrics: accuracy, F1, triplet loss, and reconstruction loss |
+| ├── `eval_runner.py` | Runs comparative evaluation (baseline vs LoRA), generates confusion matrices & misclassified samples |
+| **run_api.py** | FastAPI entry point exposing `/predict` endpoint for live inference |
 | **scripts/** | Utility scripts for experiments and automation |
 | ├── `evaluate.py` | Command-line runner to execute `app/main.py` directly |
 | └── `deploy_huggingface.sh` | Automates CI/CD deployment to Hugging Face Spaces |
 | **deploy/** | Deployment configuration files |
 | ├── `start.sh` | Launches FastAPI inference server via `uvicorn app.main:app` |
 | └── `Dockerfile` | (Optional) Container definition for cloud deployment |
-| **models/lora/** | Trained model artifacts for LoRA fine-tuning |
-| ├── `linear_head.pt` | Backup linear head checkpoint |
-| └── `label_classes.txt` | Encoded class label list used during inference |
-| **data/** | Dataset directory (processed AnnData files) |
-| └── `test.h5ad` | Evaluation/test dataset |
 | **reports/** | Generated outputs from evaluation runs |
 | ├── `cm_lora.png` | Confusion matrix for LoRA model |
 | ├── `cm_baseline.png` | Confusion matrix for baseline model |
 | ├── `summary.csv` | Metrics summary table (Accuracy, F1, Losses) |
 | └── `misclassified_top5.csv` | Top-5 most confused cell-type pairs |
-| **run_api.py** | FastAPI entry point exposing `/predict` endpoint for live inference |
 
 ---
 

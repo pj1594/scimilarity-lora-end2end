@@ -1,7 +1,6 @@
 # 🧬 SCimilarity + LoRA Fine-Tuning for Single-Cell Classification
 
 **Author:** Prajwal Eachempati  
-**Organization:** Navitas Consulting (AI & Process Automation Practice)  
 **Objective:** Implement LoRA fine-tuning with Triplet + Reconstruction losses to improve single-cell classification accuracy while mitigating catastrophic forgetting.  
 **Repo:** [https://github.com/pj1594/scimilarity-lora-end2end](https://github.com/pj1594/scimilarity-lora-end2end)
 

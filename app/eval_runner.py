@@ -1,113 +1,127 @@
-import os
-import numpy as np
-import pandas as pd
-import torch
+"""
+eval_runner.py — Full evaluation for SCimilarity LoRA
+Includes:
+    Baseline vs LoRA
+    Triplet Loss
+    Recon Loss (if decoder exists)
+    Per-class F1
+    Evidence: #classes with correct predictions
+    Confusion Matrix export
+"""
 
-from app.metrics import (
-    compute_indices,
-    batch_hard_triplet_loss,
-    reconstruction_loss_mse,
-    plot_confusion_matrix,  # writes CM; returns cm
-    get_topk_misclassified, # for programmatic use if needed
+import os, numpy as np, pandas as pd, torch
+from sklearn.metrics import (
+    accuracy_score, f1_score, precision_score, recall_score,
+    confusion_matrix, classification_report
 )
-from app.model_io import embed_in_batches, normalize_embeddings
+from collections import defaultdict
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+os.makedirs("artifacts", exist_ok=True)
 
+# Required globals: encoder_base, encoder (LoRA), head_base, head, Xte, yte, le
+for must in ["encoder_base","encoder","head_base","head","Xte","yte","le"]:
+    assert must in globals(), f"{must} missing."
+
+classes = list(le.classes_)
+N = len(yte)
+
+# -------------- L2 Normalize ----------------
+def l2norm(z):
+    z = torch.as_tensor(z, device=DEVICE, dtype=torch.float32)
+    return torch.nn.functional.normalize(z, dim=1)
+
+# -------------- Triplet Loss ----------------
+def triplet(Z, y, margin=0.2):
+    Z = l2norm(Z)
+    y = torch.as_tensor(y, device=DEVICE)
+    diff = torch.cdist(Z,Z,p=2)
+    same = (y[:,None]==y[None,:])
+    pos = diff.clone(); pos[~same] = -1e9
+    eye=torch.eye(len(Z),device=DEVICE).bool()
+    pos[eye] = -1e9
+    hardest_pos = pos.max(1).values
+    neg = diff.clone(); neg[same] = 1e9
+    hardest_neg = neg.min(1).values
+    loss = (hardest_pos-hardest_neg+margin).clamp(min=0)
+    return float(loss.mean().item())
+
+# -------------- Reconstruction Loss (if available) --------------
+def recon(encoder_obj, X):
+    dec=None
+    for nm in ("decode","forward_decoder","decode_from_latent"):
+        if hasattr(encoder_obj,nm):
+            dec=getattr(encoder_obj,nm)
+            break
+    if dec is None:
+        return None
+    X = torch.as_tensor(X,device=DEVICE,dtype=torch.float32)
+    with torch.no_grad():
+        z  = encoder_obj.encode(X)
+        z  = torch.as_tensor(z,device=DEVICE,dtype=torch.float32)
+        Xh = dec(z)
+        return float(((X-Xh)**2).mean().item())
+
+# -------------- Embedding ----------------
 @torch.no_grad()
-def _predict_from_head(head, Z_np):
-    logits = head(torch.from_numpy(Z_np).to(DEVICE))
-    return logits.argmax(1).cpu().numpy()
+def embed(enc,X,bs=1024):
+    outs=[]
+    X=np.asarray(X)
+    for i in range(0,len(X),bs):
+        xb = X[i:i+bs]
+        zb = enc.get_embeddings(xb)
+        outs.append(zb)
+    return np.vstack(outs)
 
-def _evaluate_single_model(
-    tag: str,
-    encoder_obj,
-    head,
-    Xte,
-    yte,
-    classes,
-    artifacts_dir: str,
-):
+print("Embedding: baseline, LoRA ...")
+Zb = embed(encoder_base, Xte)
+Zl = embed(encoder,      Xte)
+Zb = l2norm(Zb); Zl = l2norm(Zl)
 
-    Z = normalize_embeddings(embed_in_batches(encoder_obj, Xte))
-    y_pred = _predict_from_head(head, Z)
+# -------------- Predict ----------------
+with torch.no_grad():
+    pb = head_base(torch.as_tensor(Zb,device=DEVICE)).argmax(1).cpu().numpy()
+    pl = head(torch.as_tensor(Zl,device=DEVICE)).argmax(1).cpu().numpy()
 
-    # Metrics
-    metrics = {
-        "model": tag,
-        **compute_indices(yte, y_pred),
-        "triplet_loss": batch_hard_triplet_loss(Z, yte),
-        "reconstruction_mse": reconstruction_loss_mse(encoder_obj, Xte),
-    }
+# -------------- Metrics ----------------
+acc_b = accuracy_score(yte,pb)
+acc_l = accuracy_score(yte,pl)
+f1_b  = f1_score(yte,pb,average="macro")
+f1_l  = f1_score(yte,pl,average="macro")
+tri_b = triplet(Zb,yte)
+tri_l = triplet(Zl,yte)
+rec_b = recon(encoder_base,Xte)
+rec_l = recon(encoder,Xte)
 
-    cm_path = os.path.join(artifacts_dir, f"cm_{tag}.png")
-    top5_path = os.path.join(artifacts_dir, f"top5_misclassified_{tag}.csv")
-    plot_confusion_matrix(
-        y_true=yte,
-        y_pred=y_pred,
-        classes=classes,
-        title=f"{tag.upper()} — Confusion Matrix",
-        out_path=cm_path,
-        topk_path=top5_path,
-    )
-    return metrics
+print("\n=== SUMMARY ===")
+print(f"Baseline  : ACC={acc_b:.4f} | MF1={f1_b:.4f} | triplet={tri_b:.4f} | recon={rec_b}")
+print(f"LoRA      : ACC={acc_l:.4f} | MF1={f1_l:.4f} | triplet={tri_l:.4f} | recon={rec_l}")
 
-def evaluate_models(
-    encoder_lora,
-    encoder_base,
-    head,
-    head_base,
-    Xte,
-    yte,
-    classes,
-    artifacts_dir: str = "artifacts",
-) -> pd.DataFrame:
+# -------------- Classification Report --------------
+print("\n--- LoRA Report ---")
+print(classification_report(yte,pl,target_names=classes))
 
-    os.makedirs(artifacts_dir, exist_ok=True)
-    head = head.to(DEVICE).eval()
-    head_base = head_base.to(DEVICE).eval()
+# -------------- Per-class evidence: #classes hit --------------
+hits = defaultdict(int)
+for yi,pi in zip(yte,pl):
+    if yi==pi: hits[yi]+=1
 
-    lora_metrics = _evaluate_single_model(
-        tag="lora",
-        encoder_obj=encoder_lora,
-        head=head,
-        Xte=Xte,
-        yte=yte,
-        classes=classes,
-        artifacts_dir=artifacts_dir,
-    )
-    base_metrics = _evaluate_single_model(
-        tag="baseline",
-        encoder_obj=encoder_base,
-        head=head_base,
-        Xte=Xte,
-        yte=yte,
-        classes=classes,
-        artifacts_dir=artifacts_dir,
-    )
+hit_names=[]
+for k,v in hits.items():
+    if v>0: hit_names.append(classes[k])
 
-    df = pd.DataFrame([lora_metrics, base_metrics])
-    df_path = os.path.join(artifacts_dir, "summary.csv")
-    df.to_csv(df_path, index=False)
+print(f"\n[EVIDENCE] Correct predictions for {len(hit_names)} / {len(classes)} classes:")
+print(hit_names)
 
-    print("\\n✅ Evaluation complete.")
-    print(df.to_string(index=False))
-    print(f"Artifacts: {os.path.abspath(artifacts_dir)}")
-    return df
+# -------------- Confusion Matrix --------------
+cm = confusion_matrix(yte,pl)
+pd.DataFrame(cm, index=classes, columns=classes).to_csv("artifacts/confusion_matrix.csv")
+print("Saved: artifacts/confusion_matrix.csv")
 
-if __name__ == "__main__":
-    # Expect: encoder (LoRA), encoder_base, head, head_base, Xte, yte, le
-    missing = [n for n in ["encoder", "encoder_base", "head", "head_base", "Xte", "yte", "le"] if n not in globals()]
-    if missing:
-        raise RuntimeError(f"Missing in globals: {missing}")
-    classes = list(le.classes_)
-    evaluate_models(
-        encoder_lora=encoder,
-        encoder_base=encoder_base,
-        head=head,
-        head_base=head_base,
-        Xte=Xte,
-        yte=yte,
-        classes=classes,
-        artifacts_dir="artifacts",
-    )
+summary = pd.DataFrame([
+    dict(model="baseline",acc=acc_b,f1=f1_b,triplet=tri_b,recon=rec_b),
+    dict(model="lora",    acc=acc_l,f1=f1_l,triplet=tri_l,recon=rec_l),
+])
+summary.to_csv("artifacts/summary.csv",index=False)
+print("Saved: artifacts/summary.csv")
+print("\nDone.")

@@ -116,5 +116,3 @@ The pipeline is reproducible (run_all.py) and auditable (CSV/PNG/JSON artifacts)
 - Automate deployment pipeline into **Vertex AI or AWS Sagemaker** for production scalability.
 
 ---
-
-> “In complex biological systems, stability is progress — LoRA’s consistency with triplet and reconstruction losses ensures evolution without erasure.”

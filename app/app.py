@@ -1,202 +1,161 @@
-import os, traceback
-import numpy as np, pandas as pd, torch, torch.nn as nn
+"""
+app.py — FastAPI inference for SCimilarity + LoRA head
+Author: Prajwal Eachempati
+"""
+
+import os
+import numpy as np
+import pandas as pd
+import torch
+import torch.nn as nn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
-from typing import Dict, Optional
+from typing import Dict, List
 
-# ----------------- CONFIG -----------------
-MODEL_DIR    = os.getenv("MODEL_DIR", "/content/scimilarity_model_v1_1")
-HEAD_PATH    = os.getenv("HEAD_PATH", "models/lora/mlp_head_best.pt")
-CLASSES_PATH = os.getenv("CLASSES_PATH", "models/lora/label_classes.txt")
-LABEL_KEY    = os.getenv("LABEL_KEY", "cell_type")
-TEMP         = float(os.getenv("TEMP", "0.7"))
-THRESH       = float(os.getenv("THRESH", "0.40"))
-DTYPE        = torch.float32
-DEVICE       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# ----------------- MODEL -----------------
 from scimilarity.cell_embedding import CellEmbedding  # type: ignore
 
-app = FastAPI(title="SCimilarity + LoRA Inference API", version="1.0.0")
+# ---------------- CONFIG ----------------
+MODEL_DIR    = os.getenv("MODEL_DIR", "scimilarity_model_v1_1")
+HEAD_PATH    = os.getenv("HEAD_PATH", "models/lora/linear_head.pt")
+CLASSES_PATH = os.getenv("CLASSES_PATH", "models/lora/label_classes.txt")
+
+TEMP       = float(os.getenv("TEMP", "0.7"))     # temperature
+UNKNOWN_TH = float(os.getenv("THRESH", "0.10"))  # threshold for "Unknown"
+DTYPE      = torch.float32
+DEVICE     = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# ---------------- FastAPI ----------------
+app = FastAPI(title="SCimilarity + LoRA Inference", version="1.1")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
+    allow_origins=["*"], allow_credentials=True,
+    allow_methods=["*"], allow_headers=["*"]
 )
 
-def _log(msg): print(f"[api] {msg}", flush=True)
-
-# ----- Input schema -----
+# ---------------- Input Schemas ----------------
 class CellInput(BaseModel):
     expression: Dict[str, float]
+
     @validator("expression")
-    def _check_expr(cls, v):
+    def _validate(cls, v):
         if not isinstance(v, dict):
-            raise ValueError("`expression` must be a dict of {gene_symbol: numeric_value}.")
+            raise ValueError("Expression must be a dict of gene→value.")
         for k, val in v.items():
-            try: float(val)
-            except Exception: raise ValueError(f"value for {k} must be numeric (got {val!r})")
+            _ = float(val)  # ensure numeric
         return v
 
-# ----- Normalization -----
-def _normalize_expr_dict(expr: Dict[str, float]) -> Dict[str, float]:
-    vals = np.asarray(list(expr.values()), dtype=np.float32)
-    if vals.size == 0 or float(vals.sum()) <= 0.0:
-        return expr
-    scale = 1e4 / float(vals.sum())
-    return {k: float(np.log1p(float(v) * scale)) for k, v in expr.items()}
+class BatchInput(BaseModel):
+    expressions: List[Dict[str, float]]
+    topk: int = 3
 
-# ----- Load encoder -----
-try:
-    encoder = CellEmbedding(model_path=MODEL_DIR, use_gpu=(DEVICE.type == "cuda"))
-    _log(f"Loaded SCimilarity from {MODEL_DIR} on {DEVICE}")
-except Exception as e:
-    raise RuntimeError(f"Failed to load SCimilarity model from {MODEL_DIR}: {e}")
+# ---------------- Helpers ----------------
+def load_gene_order(dirpath):
+    f = os.path.join(dirpath, "gene_order.tsv")
+    genes = pd.read_csv(f, sep="\t", header=None)[0].astype(str).str.upper().tolist()
+    return genes
 
-# ----- Gene order -----
-gorder_tsv = os.path.join(MODEL_DIR, "gene_order.tsv")
-if not os.path.exists(gorder_tsv):
-    raise FileNotFoundError(f"Missing gene_order.tsv at {gorder_tsv}")
+def normalize_expr(expr):
+    vals = np.array(list(expr.values()), dtype=np.float32)
+    if vals.sum() <= 0: return expr
+    scale = 1e4 / vals.sum()
+    return {k: float(np.log1p(v * scale)) for k, v in expr.items()}
 
-MODEL_GENES = pd.read_csv(gorder_tsv, sep="\t", header=None)[0].astype(str).str.upper().tolist()
+def dict_to_tensor(expr, gene2idx, n):
+    v = np.zeros(n, dtype=np.float32)
+    for g, val in expr.items():
+        idx = gene2idx.get(g.upper())
+        if idx is not None:
+            v[idx] = float(val)
+    return torch.from_numpy(v).unsqueeze(0).to(DEVICE)
+
+# ---------------- Load Base Model ----------------
+encoder = CellEmbedding(model_path=MODEL_DIR, use_gpu=(DEVICE.type=="cuda"))
+
+MODEL_GENES = load_gene_order(MODEL_DIR)
+GENE2IDX = {g: i for i,g in enumerate(MODEL_GENES)}
 N_GENES = len(MODEL_GENES)
-GENE2IDX = {g: i for i, g in enumerate(MODEL_GENES)}
 
-# ----- Encode (LoRA-safe) -----
+# Ensure embedding dim
 @torch.no_grad()
-def lora_encode(self, x: torch.Tensor) -> torch.Tensor:
-    # Use underlying .model if present (PEFT/LoRA wrapper), else assume self is a nn.Module-like
-    m = getattr(self, "model", None)
-    x = x.to(DEVICE, dtype=DTYPE, non_blocking=True)
-    if m is not None:
-        m.eval()
-        out = m(x)
-    else:
-        # fallback to CellEmbedding.get_embeddings
-        out = self.get_embeddings(x)
-    return torch.as_tensor(out, dtype=DTYPE, device=DEVICE)
+def infer_dim():
+    probe = torch.zeros(1, N_GENES, dtype=DTYPE).to(DEVICE)
+    z = encoder.get_embeddings(probe)
+    z = torch.as_tensor(z, dtype=DTYPE, device=DEVICE)
+    return z.shape[1]
 
-# Bind encode
-encoder.encode = lora_encode.__get__(encoder, type(encoder))
+EMB_DIM = infer_dim()
 
-# ----- Classes -----
-if not os.path.exists(CLASSES_PATH):
-    raise FileNotFoundError(f"Missing classes at {CLASSES_PATH}")
-CLASSES = [ln.strip() for ln in open(CLASSES_PATH, "r", encoding="utf-8") if ln.strip()]
+# Load label classes
+with open(CLASSES_PATH) as f:
+    CLASSES = [ln.strip() for ln in f if ln.strip()]
 N_CLASSES = len(CLASSES)
 
-# ----- Probe emb dim -----
-with torch.no_grad():
-    probe = torch.zeros(1, N_GENES, dtype=DTYPE, device=DEVICE)
-    z = encoder.encode(probe)
-    if z.ndim == 1: z = z.unsqueeze(0)
-    EMB_DIM = int(z.shape[1])
-_log(f"Embedding dim = {EMB_DIM}, classes = {N_CLASSES}")
-
-# ----- Head loader (MLP or Linear) -----
-class MLP(nn.Module):
-    def __init__(self, d: int, c: int):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(d, 1024),
+# Load LoRA classification head
+def load_head(path, emb_dim, n_cls):
+    st = torch.load(path, map_location="cpu")
+    # try MLP first
+    try:
+        h = nn.Sequential(
+            nn.Linear(emb_dim, 1024),
             nn.ReLU(inplace=True),
             nn.Dropout(0.25),
-            nn.Linear(1024, c),
+            nn.Linear(1024, n_cls)
         )
-    def forward(self, x): return self.net(x)
+        h.load_state_dict(st)
+    except:
+        h = nn.Linear(emb_dim, n_cls)
+        h.load_state_dict(st)
+    return h.to(DEVICE).eval()
 
-if not os.path.exists(HEAD_PATH):
-    # fallback to linear head file if mlp not present
-    alt = "models/lora/linear_head.pt"
-    if os.path.exists(alt):
-        HEAD_PATH = alt
-    else:
-        raise FileNotFoundError(f"Missing head weights at {HEAD_PATH}")
+head = load_head(HEAD_PATH, EMB_DIM, N_CLASSES)
 
-state = torch.load(HEAD_PATH, map_location="cpu")
-_head: Optional[nn.Module] = None
-try:
-    h = MLP(EMB_DIM, N_CLASSES)
-    h.load_state_dict(state, strict=True)
-    _head = h
-    _log(f"Loaded MLP head from {HEAD_PATH}")
-except Exception:
-    h = nn.Linear(EMB_DIM, N_CLASSES)
-    h.load_state_dict(state, strict=True)
-    _head = h
-    _log(f"Loaded Linear head from {HEAD_PATH}")
+# ---------------- Core inference ----------------
+@torch.no_grad()
+def _predict(expr: Dict[str,float], topk=1):
+    expr = normalize_expr(expr)
+    x = dict_to_tensor(expr, GENE2IDX, N_GENES)
+    z = encoder.get_embeddings(x)
+    z = torch.as_tensor(z, dtype=DTYPE, device=DEVICE)
 
-head = _head.to(DEVICE).eval()
+    logits = head(z) / max(TEMP,1e-6)
+    prob   = torch.softmax(logits,dim=1)[0].cpu().numpy()
 
-# ----- Vectorization -----
-def dict_to_tensor(expr: Dict[str, float]) -> torch.Tensor:
-    vec = np.zeros(N_GENES, dtype=np.float32)
-    for g, v in expr.items():
-        i = GENE2IDX.get(str(g).upper())
-        if i is not None:
-            vec[i] = float(v)
-    x = torch.from_numpy(vec).to(device=DEVICE, dtype=DTYPE)
-    if x.ndim == 1: x = x.unsqueeze(0)
-    return x
+    order = np.argsort(prob)[::-1][:topk]
+    out = [{"label": CLASSES[i], "confidence": float(prob[i])} for i in order]
 
-# ================= Routes =================
+    if UNKNOWN_TH>0 and out[0]["confidence"]<UNKNOWN_TH:
+        out[0]["label"]="Unknown/Uncertain"
+
+    return out
+
+# ---------------- Routes ----------------
 @app.get("/healthz")
-def healthz():
-    return {
-        "ok": True,
-        "device": str(DEVICE),
-        "n_genes": N_GENES,
-        "emb_dim": EMB_DIM,
-        "n_classes": N_CLASSES,
-        "model_dir": MODEL_DIR,
-        "head_path": HEAD_PATH,
-    }
+def health():
+    return dict(ok=True,
+                device=str(DEVICE),
+                n_genes=N_GENES,
+                emb_dim=EMB_DIM,
+                n_classes=N_CLASSES)
 
 @app.get("/classes")
 def classes():
     return {"classes": CLASSES}
 
 @app.post("/predict")
-@torch.no_grad()
-def predict(inp: CellInput):
+def predict(inp: CellInput, topk: int = 1):
     try:
-        expr = _normalize_expr_dict(inp.expression)
-        x = dict_to_tensor(expr)
-        z = encoder.encode(x)
-        logits = head(z) / max(TEMP, 1e-6)
-        probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
-        i = int(np.argmax(probs))
-        label = CLASSES[i]; conf = float(probs[i])
-        if THRESH > 0.0 and conf < THRESH:
-            label = "Unknown / Uncertain"
-        return {"cell_type": label, "confidence": conf}
+        res = _predict(inp.expression, topk=topk)
+        return {"predictions": res}
     except Exception as e:
-        print("[api] ERROR /predict:", e, "\n", traceback.format_exc(), flush=True)
-        raise HTTPException(status_code=500, detail=f"Inference error: {e}")
-
-# Optional batch endpoint (useful for UI/testing)
-class BatchInput(BaseModel):
-    expressions: Dict[str, Dict[str, float]]  # id -> {gene:value}
+        raise HTTPException(500, f"Inference error: {e}")
 
 @app.post("/predict_batch")
-@torch.no_grad()
 def predict_batch(inp: BatchInput):
     try:
-        ids, mats = [], []
-        for k, expr in inp.expressions.items():
-            expr_n = _normalize_expr_dict(expr)
-            ids.append(k); mats.append(dict_to_tensor(expr_n))
-        X = torch.cat(mats, dim=0)
-        z = encoder.encode(X)
-        logits = head(z) / max(TEMP, 1e-6)
-        probs = torch.softmax(logits, dim=1).cpu().numpy()
-        preds = []
-        for rid, p in zip(ids, probs):
-            i = int(np.argmax(p)); conf = float(p[i]); label = CLASSES[i]
-            if THRESH > 0.0 and conf < THRESH:
-                label = "Unknown / Uncertain"
-            preds.append({"id": rid, "cell_type": label, "confidence": conf})
-        return {"results": preds}
+        results=[]
+        for ex in inp.expressions:
+            results.append({"predictions": _predict(ex, topk=inp.topk)})
+        return {"results": results}
     except Exception as e:
-        print("[api] ERROR /predict_batch:", e, "\n", traceback.format_exc(), flush=True)
-        raise HTTPException(status_code=500, detail=f"Batch inference error: {e}")
+        raise HTTPException(500, f"Batch error: {e}")

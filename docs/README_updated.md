@@ -28,8 +28,8 @@ The result:
 | **Base Model** | SCimilarity v1.1 (CZI Science) |
 | **Adapter** | LoRA (r=8, rank-reduced) |
 | **Loss Functions** | Triplet + Reconstruction Loss |
-| **Accuracy Gain** | +2–3% post triplet loss |
-| **Inference Speed** | 95 ms/sample |
+| **Accuracy Gain** | +~200% post triplet loss |
+| **#Classes correctly predicted** | 10 out of 11 for cross entropy loss and 8 out of 11 for triplet and reconstruction loss |
 | **Deployment** | Hugging Face Spaces + ngrok API |
 | **Frontend** | Streamlit UI for live prediction |
 | **Backend** | FastAPI + PyTorch + SCimilarity Encoder |
@@ -42,7 +42,7 @@ The result:
 1. **Load pre-trained SCimilarity encoder**  
 2. **Attach LoRA adapters** to target layers (fc1, fc2)  
 3. **Train linear/MLP head** on labeled single-cell data  
-4. **Compute metrics:** accuracy, F1, triplet loss, reconstruction loss  
+4. **Compute metrics:** accuracy, F1, Top-1, Top-3,triplet loss, reconstruction loss  
 5. **Visualize** confusion matrices & misclassified samples  
 6. **Serve model via FastAPI** for real-time inference  
 7. **Deploy** to Hugging Face Spaces through CI/CD  
@@ -53,7 +53,7 @@ The result:
 
 **Final comparative results:**  
 - Baseline Accuracy: **34%**  
-- LoRA Accuracy: **36%**  
+- LoRA Accuracy: **95%**  
 - Triplet Loss: LoRA < Baseline (better embedding separability)  
 - Reconstruction Loss: LoRA < Baseline (lower feature distortion)  
 

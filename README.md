@@ -69,19 +69,19 @@ The fact that Triplet-Loss improves cluster separation yet slightly reduces accu
 ## Updated Detailed Classification Snapshot
 [FINAL METRICS] N=3230 | Top-1=0.9477 | Top-3=0.9833
 
-Class                                    Prec    Rec     F1
-------------------------------------------------------------
-Bergmann glial cell                      0.15    1.00    0.26
-astrocyte                                0.98    0.89    0.93
-central nervous system macrophage        0.95    0.96    0.96
-endothelial cell                         0.61    0.85    0.71
-fibroblast                               0.67    0.97    0.79
-leukocyte                                0.50    0.73    0.59
-neuron                                   0.98    0.97    0.97
-oligodendrocyte                          0.96    0.97    0.96
-oligodendrocyte precursor cell           1.00    0.74    0.85
-pericyte                                 0.23    1.00    0.37
-vascular associated smooth muscle cell   0.00    0.00    0.00
+|Class                                 | Prec  | Rec    | F1
+|----------------                      |-------|--------|-----|
+Bergmann glial cell                    | 0.15  | 1.00   | 0.26
+astrocyte                              | 0.98  | 0.89   | 0.93
+central nervous system macrophage      | 0.95  | 0.96   | 0.96
+endothelial cell                       | 0.61  | 0.85   | 0.71
+fibroblast                             | 0.67  | 0.97   | 0.79
+leukocyte                              | 0.50  | 0.73   | 0.59
+neuron                                 | 0.98  | 0.97   | 0.97
+oligodendrocyte                        | 0.96  | 0.97   | 0.96
+oligodendrocyte precursor cell         | 1.00  | 0.74   | 0.85
+pericyte                               | 0.23  | 1.00   | 0.37
+vascular associated smooth muscle cell |0.00   | 0.00   | 0.00
 
 ## Error Analysis
 The only class missing consistent correct predictions (“vascular associated smooth muscle cell”) contains very few samples.
